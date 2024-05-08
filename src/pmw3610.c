@@ -59,6 +59,15 @@ static int (*const async_init_fn[ASYNC_INIT_STEP_COUNT])(const struct device *de
     [ASYNC_INIT_STEP_CONFIGURE] = pmw3610_async_init_configure,
 };
 
+struct move_precision_leftover {
+	uint16_t x;
+	uint16_t y;
+};
+static struct move_precision_leftover leftover = {
+	.x = 0,
+	.y = 0
+};
+
 //////// Function definitions //////////
 
 // checked and keep
@@ -626,25 +635,29 @@ static int pmw3610_report_data(const struct device *dev) {
     }
 
     int16_t raw_x =
-        TOINT16((buf[PMW3610_X_L_POS] + ((buf[PMW3610_XY_H_POS] & 0xF0) << 4)), 12) / dividor;
+        TOINT16((buf[PMW3610_X_L_POS] + ((buf[PMW3610_XY_H_POS] & 0xF0) << 4)), 12) + leftover.x;
+    leftover.x = raw_x % dividor;
+    int16_t adjusted_x = raw_x / dividor;
     int16_t raw_y =
-        TOINT16((buf[PMW3610_Y_L_POS] + ((buf[PMW3610_XY_H_POS] & 0x0F) << 8)), 12) / dividor;
+        TOINT16((buf[PMW3610_Y_L_POS] + ((buf[PMW3610_XY_H_POS] & 0x0F) << 8)), 12) + leftover.y;
+    leftover.y = raw_y % dividor;
+    int16_t adjusted_y = raw_y / dividor;
 
     int16_t x;
     int16_t y;
 
     if (IS_ENABLED(CONFIG_PMW3610_ORIENTATION_0)) {
-        x = -raw_x;
-        y = raw_y;
+        x = -adjusted_x;
+        y = adjusted_y;
     } else if (IS_ENABLED(CONFIG_PMW3610_ORIENTATION_90)) {
-        x = raw_y;
-        y = -raw_x;
+        x = adjusted_y;
+        y = -adjusted_x;
     } else if (IS_ENABLED(CONFIG_PMW3610_ORIENTATION_180)) {
-        x = raw_x;
-        y = -raw_y;
+        x = adjusted_x;
+        y = -adjusted_y;
     } else if (IS_ENABLED(CONFIG_PMW3610_ORIENTATION_270)) {
-        x = -raw_y;
-        y = raw_x;
+        x = -adjusted_y;
+        y = adjusted_x;
     }
 
     if (IS_ENABLED(CONFIG_PMW3610_INVERT_X)) {
